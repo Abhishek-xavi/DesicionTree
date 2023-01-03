@@ -1,0 +1,36 @@
+Below is Algorithm for the Desicion tree implemented.
+
+The goal is to find the best split
+
+Important Concepts to work on,
+1. Node
+2. Gini Impurity
+3. Level
+4. Splitting
+
+Node is the splitting point for the dataset where the GI is high.
+Important attributed of a node,
+1. Gini Impurity score
+2. Number of observations
+3. number of observations belonging to each binary class
+4. feature matrix X, representing observations that fall into the node
+
+Defining Node class.
+1. Pass output label and input dataframe. For hyper parameters pass max_depth and min_sample_split.
+2. We initialize all parameters in the Node class and find the gini Impurity for that particular Node.
+3. To calculate gini impurity, we first call,
+    a. get_GINI function: This function calculates the number of observations for each output class. We next call gini_Impurity function.
+    b. gini_Impurity: This function first get a probability of each class. This probability is summed up and then subtracted from 1, to get the gini value.
+4. Next we call grow_tree function, which builds are desicion tree.
+    a. This is a recurcive function which takes in the dataset, finds the best split and splits the dataset.
+    b. The dataset is then assigned to left and right node.
+    c. From each node, grow_tree function is called again for further split.
+    d. The function is called recursively until max_depth of tree is achieved or minimum number of samples to be split is achieved.
+5. In the best_split function, 
+    a. we first get the gini value for that particular node based on output labels.
+    b. We next work towards finding the best split by iterating through every feature and finding a feature with best split based on maximum gini value.
+    c. For every feature, we first sort the feature values.
+    d. Next, we find the unique average between every two consecutive values. These would be the testing points for our split.
+    e. We then iterate over every these unique averages and find their gini values.
+    f. Each gini value is compared against the base gini value of the node, and the split with highest gain is choosen to be our best split while saving
+        best feature and best value.
