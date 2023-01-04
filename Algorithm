@@ -34,3 +34,10 @@ Defining Node class.
     e. We then iterate over every these unique averages and find their gini values.
     f. Each gini value is compared against the base gini value of the node, and the split with highest gain is choosen to be our best split while saving
         best feature and best value.
+
+
+
+
+
+References
+1. https://towardsdatascience.com/decision-tree-algorithm-in-python-from-scratch-8c43f0e40173
