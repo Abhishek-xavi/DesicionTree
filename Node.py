@@ -1,23 +1,71 @@
-#Loading libraries
+###########################
+#### LOADING LIBRARIES ####
+###########################
 
 import pandas as pd
 import numpy as np
 from collections import Counter
+import math
 
-# Defining Node class
+##############################################
+#### DEFINING NODE CLASS AS DECISION TREE ####
+##############################################
 
 class Node:
 
-    # Defining class variable, to store the unique output labels.
-    UNIQUE_CLASS = 0
+    """Details about my desicion tree classifier
+
+    Parameters
+    
+    ----------------------------------------------------------------
+
+    criterion : {"gini", "entropy"}, default value = "gini"
+        This helps define on what statistical concenpt the node is split.
+
+    splitter : {"best", "random"}, default="best"
+        The strategy used to choose the split at each node. Supported
+        strategies are "best" to choose the best split and "random" to choose
+        the best random split.
+
+    max_depth : int, default=None
+        Define the maximum number of levels our tree must contain.
+        For default value of None, the tree keeps splitting until pure leaf node or when we hit min_sample_leaf value
+
+    min_samples_split : int, default=2
+        This is the minimum number of samples present in a node to split it further
+
+    min_samples_leaf : int, default=1
+        The minimum number of samples required to make a node.
+
+    max_features : int, {"auto", "sqrt", "log2"}, default=None
+        The number of features need to be considered while splitting a node.
+        For auto and sqrt we take max features to be sqrt(features).
+        For log2 we consider max features to be log2(features).
+
+    random_state : int, default=None
+        Controls the randomness of our classifier.
+
+    min_impurity_decrease : float, default=0.0
+        A threshold that decides a minimum information gain for every node split.
+
+        """
+
+    # Class variable storing for storing distinct output classes
+    CLASS_COUNT = 0
 
     # Defining class constructor
+
     def __init__(
         self,
         Y: list,
         X: pd.DataFrame,
-        min_samples_split = 20,
+        criterion = 'gini',
         max_depth = 5,
+        min_samples_split = 2,
+        min_samples_leaf = 1,
+        max_features = None,
+        random_state = None,
+        min_impurity_decrease = 0.0,
         depth = 0,
         node_type = 'root',
         rule = ''
@@ -26,35 +74,45 @@ class Node:
         #Saving data to node
         self.X = X
         self.Y = Y
+        self.criterion = criterion
+        self.max_depth = int(max_depth)
+        self.min_samples_split = int(min_samples_split)
+        self.min_samples_leaf = int(min_samples_leaf)
+        self.max_features = max_features
+        self.random_state = random_state
+        self.min_impurity_decrease = min_impurity_decrease
         
-        self.min_samples_split = min_samples_split
-        self.max_depth = max_depth
-        
-        #Depth of node
+
+        ####################################################################
+        #### DEFINING VARIABLES TO MAINTAIN INTERPRETABILITY OF OUR TREE ###
+        ####################################################################
+
+        # self.depth is counter to keep a track of the tree's depth
         self.depth = depth
-        #Creating a list of features
+        # This variable holds the number of observations in each 
+        self.class_counts = Counter(Y)
+        # Storing list of features available for the node.
         self.features = list(self.X.columns)
-        #Type of node
+        # This holds the information if it's a right node or left node of the split
         self.node_type = node_type
-
-        #Rule for splitting
+        # This variable contains the details regarding which feature and corresponding value was the node split upon.
         self.rule = rule
-
-        #Calculating count of Y in node
-        self.counts = Counter(Y)
-
+        
+        # Setting the count of each output label in the class variable Unique Class.
+        # This count is stored in every Node object.
         if self.node_type == 'root':
-            Node.UNIQUE_CLASS = len(self.counts)
-        self.UNIQUE_CLASS = Node.UNIQUE_CLASS
+            Node.CLASS_COUNT = len(self.class_counts)
+        self.CLASS_COUNT = Node.CLASS_COUNT
 
-        #Getting gini distribution based on distribution of Y
-        self.gini_impurity = self.get_GINI()
+        
+        self.node_criterion_value = self.get_node_criterion_value()
 
-        #Sorting counts and saving final prediction of the node
-        counts_sorted = list(sorted(self.counts.items(), key=lambda item: item[1]))
+        # Sorting the class_count variable and fetching the label with highest variable
+        # This would be the prediction value of the node.
+        counts_sorted = list(sorted(self.class_counts.items(), key=lambda item: item[1]))
 
         #Getting last item
-        yhat = None
+        # yhat = None
 
         if len(counts_sorted) > 0:
             yhat = counts_sorted[-1][0]
@@ -73,11 +131,33 @@ class Node:
         self.best_feature = None
         self.best_value = None
 
+    ########################
+    #### CALCULATE GINI ####
+    ########################
 
-    #Defining a static method for the class, to find the gini impurity given the number of observations
-    #Arg class_counts contains number of observations for each class
+    def get_node_criterion_value(self):
+
+        #SToring count of each class in a list
+        class_counts = [ self.class_counts.get(i) if self.class_counts.get(i) is not None else 0 for i in range(self.CLASS_COUNT) ]
+
+        # Calculating criterion based on argument
+        if self.criterion == 'entropy':
+            criterion_value = self.get_entropy(class_counts)
+        else:
+            criterion_value =  self.get_gini_impurity(class_counts)
+
+        #get GINI impurity
+        return criterion_value
+        
+
+    #################################
+    #### CALCULATE GINI IMPURITY ####
+    #################################
+
+    # Defining a static method for the class, to find the gini impurity given the number of observations
+    # Arg class_counts contains number of observations for each class
     @staticmethod
-    def GINI_impurity(class_counts) -> float:
+    def get_gini_impurity(class_counts) -> float:
 
         n = sum(class_counts)
 
@@ -85,50 +165,60 @@ class Node:
         if n == 0:
             return 0.0
 
-        # Probability of each class
-        # p1 = y1_count / n
-        # p2 = y2_count / n
-
+        # Calculating probability of each class
         probab_class = [ count/n for count in class_counts ]
+        #FInding gini value
         gini_value = sum(i**2 for i in probab_class)
-        
-        # Calculate Gini
-        # gini = 1 - (p1**2 + p2**2)
+        #Calculating gini impurity
         gini = 1 - gini_value
 
         return gini
 
-    #Calculate gini impurity of a node
-    def get_GINI(self):
+    ###########################
+    #### CALCULATE ENTROPY ####
+    ###########################
 
-        #Getting count of all output classes
-        # y1_count, y2_count = self.counts.get(0), self.counts.get(1)
-
-        class_counts = [ self.counts.get(i) if self.counts.get(i) is not None else 0 for i in range(self.UNIQUE_CLASS) ]
-        
-
-        # for i in  range(len(self.counts)):
-        #     class_counts.append(self.counts.get(i))
-
-        #get GINI impurity
-        return self.GINI_impurity(class_counts)
-
-    #Define method to calculate moving average
+    # Defining a static method for the class, to find the entropy given the number of observations
+    # Arg class_counts contains number of observations for each class
     @staticmethod
-    def ma(x:np.array , window : int) -> np.array:
+    def get_entropy(class_counts) -> float:
+
+        n = sum(class_counts)
+
+        #for n=0, return the lowest gini impurity
+        if n == 0:
+            return 0.0
+
+        # Calculating probability of each class
+        probab_class = [ -(count/n) for count in class_counts ]
+        #multiplying probab with log probab
+        entropy = sum( [( i * math.log(i,2) ) for i in probab_class] )
+
+        return entropy
+
+
+    ##############################################
+    #### CALCULATE MOVING AVERAGE OF FEATURES ####
+    ##############################################
+
+    @staticmethod
+    def get_moving_average(x:np.array , window : int) -> np.array:
         return np.convolve(x, np.ones(window), 'valid') / window
 
-    #Finding best split for the node
+    ##########################################
+    #### CALCULATE BEST SPLIT OF FEATURES ####
+    ##########################################
+
     def best_split(self) -> tuple:
 
         df = self.X.copy()
         df['Y'] = self.Y
 
-        #Getting gini impurity for the base input
-        GINI_base = self.get_GINI()
+        # Setting node criterion value to calculate criterion gain later on
+        base_criterion_value = self.node_criterion_value
 
-        #Finding best split with maximum gini gain
-        max_gain = 0
+        # Setting a threshold for the information gain at every split
+        max_gain = self.min_impurity_decrease
 
         #Best feature and score
         best_feature = None
@@ -140,23 +230,20 @@ class Node:
             Xdf = df.dropna().sort_values(feature)
 
             #Sort values and get rolling average
-            xmeans = self.ma(Xdf[feature].unique(), 2)
+            xmeans = self.get_moving_average(Xdf[feature].unique(), 2)
 
             for value in xmeans:
                 #Split the dataset
                 left_counts = Counter(Xdf[Xdf[feature]<value]['Y'])
                 right_counts = Counter(Xdf[Xdf[feature]>=value]['Y'])
 
-                # Getting Y distribution
-                # y0_left, y1_left, y0_right, y1_right = left_counts.get(0), left_counts.get(1), \
-                #                                         right_counts.get(0), right_counts.get(1)
-
-                y_left_class_count = [ left_counts.get(i) if left_counts.get(i) is not None else 0 for i in  range(self.UNIQUE_CLASS) ]
-                y_right_class_count = [ right_counts.get(i) if right_counts.get(i) is not None else 0 for i in  range(self.UNIQUE_CLASS) ]
+                #Calculate various class counts in both the nodes.
+                y_left_class_count = [ left_counts.get(i) if left_counts.get(i) is not None else 0 for i in  range(self.CLASS_COUNT) ]
+                y_right_class_count = [ right_counts.get(i) if right_counts.get(i) is not None else 0 for i in  range(self.CLASS_COUNT) ]
                 
                 #getting left and right gini impurity
-                gini_left = self.GINI_impurity(y_left_class_count)
-                gini_right = self.GINI_impurity(y_right_class_count)
+                gini_left = self.get_gini_impurity(y_left_class_count)
+                gini_right = self.get_gini_impurity(y_right_class_count)
 
                 #Getting obs count from the left and right nodes
                 n_left = sum(y_left_class_count)
@@ -171,7 +258,7 @@ class Node:
                 wGINI = w_left * gini_left + w_right * gini_right
 
                 #Calculating gini gain
-                GINIgain = GINI_base - wGINI
+                GINIgain = base_criterion_value - wGINI
 
                 #Is this the best split
                 if GINIgain > max_gain:
@@ -181,7 +268,10 @@ class Node:
             
         return (best_feature, best_value)
 
-    #Creating desicion tree
+    ##############################
+    #### CREATE DECISION TREE ####
+    ##############################
+
     def grow_tree(self):
 
         df = self.X.copy()
@@ -228,7 +318,10 @@ class Node:
                 self.right = right
                 self.right.grow_tree()
 
-    # Printing information about the tree
+    ################################
+    #### PRINT TREE INFORMATION ####
+    ################################
+
     def print_info(self, width=4):
 
         # Defining the number of spaces 
@@ -239,11 +332,14 @@ class Node:
             print("Root")
         else:
             print(f"|{spaces} Split rule: {self.rule}")
-        print(f"{' ' * const}   | GINI impurity of the node: {round(self.gini_impurity, 2)}")
-        print(f"{' ' * const}   | Class distribution in the node: {dict(self.counts)}")
+        print(f"{' ' * const}   | GINI impurity of the node: {round(self.get_gini_impurity, 2)}")
+        print(f"{' ' * const}   | Class distribution in the node: {dict(self.class_counts)}")
         print(f"{' ' * const}   | Predicted class: {self.yhat}") 
 
-    #Printing the whole tree
+    ################################
+    #### PRINT TREE INFORMATION ####
+    ################################
+
     def print_tree(self):
 
         self.print_info() 
@@ -254,7 +350,10 @@ class Node:
         if self.right is not None:
             self.right.print_tree()
 
-    #Predicting the dataset
+    ##########################
+    #### PREDICT FUNCTION ####
+    ##########################
+
     def predict(self, X:pd.DataFrame):
     
         predictions = []
@@ -268,7 +367,10 @@ class Node:
         
         return predictions
 
-    #Predicting the class
+    ##########################
+    #### PREDICT FUNCTION ####
+    ##########################
+
     def predict_obs(self, values: dict) -> int:
         
         cur_node = self
